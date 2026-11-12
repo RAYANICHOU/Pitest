@@ -1,6 +1,8 @@
 import { localDateKey } from "./constants.js";
 
-export const SUBJECT_DAILY_QUESTION_GOAL = 2;
+export const SUBJECT_DAILY_QUESTION_GOAL = 10;
+export const SUBJECT_WEEKLY_QUESTION_GOAL = 60;
+export const SUBJECT_MONTHLY_QUESTION_GOAL = 240;
 
 function dayAtNoon(dateKey) {
   return new Date(`${dateKey}T12:00:00`);
@@ -8,9 +10,9 @@ function dayAtNoon(dateKey) {
 
 export function getSubjectQuestionGoal(period, now = new Date()) {
   if (period === "day") return SUBJECT_DAILY_QUESTION_GOAL;
-  if (period === "week") return SUBJECT_DAILY_QUESTION_GOAL * 7;
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  return SUBJECT_DAILY_QUESTION_GOAL * daysInMonth;
+  if (period === "week") return SUBJECT_WEEKLY_QUESTION_GOAL;
+  if (period === "month") return SUBJECT_MONTHLY_QUESTION_GOAL;
+  throw new RangeError(`Unsupported progress period: ${period}`);
 }
 
 export function getGoalProgress(answered, goal) {
@@ -43,6 +45,7 @@ export function summarizeProgress(dailyStats = {}, period = "day", now = new Dat
     durationSeconds: 0,
     sessions: 0,
     mockExams: 0,
+    dailyPlans: 0,
     dailyCheckIns: 0,
     flashcardsReviewed: 0,
     activeDays: 0,
@@ -60,6 +63,7 @@ export function summarizeProgress(dailyStats = {}, period = "day", now = new Dat
       summary.durationSeconds += day.durationSeconds || 0;
       summary.sessions += day.sessions || 0;
       summary.mockExams += day.mockExams || 0;
+      summary.dailyPlans += day.dailyPlans || 0;
       summary.dailyCheckIns += day.dailyCheckIns || 0;
       summary.flashcardsReviewed += day.flashcardsReviewed || 0;
       if ((day.answered || 0) > 0 || (day.flashcardsReviewed || 0) > 0) summary.activeDays += 1;
@@ -109,6 +113,7 @@ export function addDailySession(dailyStats, dateKey, session) {
       sessions: (day.sessions || 0) + Number(session.completed),
       durationSeconds: (day.durationSeconds || 0) + session.durationSeconds,
       mockExams: (day.mockExams || 0) + Number(session.mode === "exam" && session.completed),
+      dailyPlans: (day.dailyPlans || 0) + Number(session.mode === "daily-plan" && session.completed),
       dailyCheckIns: (day.dailyCheckIns || 0) + Number(session.mode === "daily-check-in" && session.completed),
     },
   };

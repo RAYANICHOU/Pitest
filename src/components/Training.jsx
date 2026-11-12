@@ -169,7 +169,7 @@ export default function Training({ questions, mistakes, onAnswer, onSessionCompl
   if (complete) return <div className="space-y-5 py-5">
     <div className="py-5 text-center">
       <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-400/10 text-emerald-300"><Check size={30} /></div>
-      <p className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-sky-300">{exam ? t(language, "Exam complete", "Examen terminé") : sessionMode === "daily-check-in" ? t(language, "Daily check-in complete", "Test du jour terminé") : t(language, "Session complete", "Session terminée")}</p>
+      <p className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-sky-300">{exam ? t(language, "Exam complete", "Examen terminé") : sessionMode === "daily-plan" ? t(language, "Daily study plan complete", "Plan de révision du jour terminé") : sessionMode === "daily-check-in" ? t(language, "Quick check-in complete", "Test rapide terminé") : t(language, "Session complete", "Session terminée")}</p>
       <h1 className="mt-2 text-3xl font-bold text-white">{score}<span className="text-lg text-slate-500">/{session.length}</span></h1>
       <p className="mt-2 text-sm text-slate-400">{exam ? t(language, "Time remaining", "Temps restant") : t(language, "Time elapsed", "Temps écoulé")} : {time}</p>
       <p className="mt-1 text-xs text-slate-500">{t(language, `${Math.round((score / session.length) * 100)}% score`, `${Math.round((score / session.length) * 100)}% de réussite`)}</p>

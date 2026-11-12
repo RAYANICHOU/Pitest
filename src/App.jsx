@@ -42,8 +42,8 @@ function App() {
   const flashcards = useMemo(() => data.bank.filter((item) => item.type === "flashcard"), [data.bank]);
 
   const startSession = (ids, mode = "practice") => {
-    const selectedIds = new Set(ids);
-    const randomizedIds = shuffle(questions.filter((question) => selectedIds.has(question.id)))
+    const questionsById = new Map(questions.map((question) => [question.id, question]));
+    const randomizedIds = shuffle(ids.map((id) => questionsById.get(id)).filter(Boolean))
       .map((question) => question.id);
     setTrainingActive(true);
     setTrainingSession({ ids: randomizedIds, mode, token: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}` });

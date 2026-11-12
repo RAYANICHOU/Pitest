@@ -2,8 +2,8 @@ import { useState } from "react";
 import { ArrowRight, BarChart3, Check, ChevronDown, ChevronRight, Clock3, RotateCcw, Target, Zap } from "lucide-react";
 import { CATEGORIES, localDateKey } from "../lib/constants.js";
 import { categoryLabel, locale, t } from "../lib/i18n.js";
-import { randomQuestionIds } from "../lib/questionSelection.js";
-import { getGoalProgress, getSubjectQuestionGoal, summarizeProgress } from "../lib/progress.js";
+import { randomQuestionIds, randomQuestionIdsWithRepeats } from "../lib/questionSelection.js";
+import { getGoalProgress, getSubjectQuestionGoal, SUBJECT_DAILY_QUESTION_GOAL, summarizeProgress } from "../lib/progress.js";
 
 const subjectStyle = {
   Anglais: { icon: "EN", color: "text-violet-300", bar: "bg-violet-400", panel: "border-violet-300/10" },
@@ -38,6 +38,13 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
   const dateLabel = new Intl.DateTimeFormat(locale(language), { day: "numeric", month: "long" }).format(new Date());
   const periodStats = summarizeProgress(data.dailyStats || {}, progressPeriod);
   const subjectGoal = getSubjectQuestionGoal(progressPeriod);
+  const questionsByCategory = Object.fromEntries(CATEGORIES.map((category) => [
+    category,
+    questions.filter((question) => question.category === category),
+  ]));
+  const availableCategories = CATEGORIES.filter((category) => questionsByCategory[category].length > 0);
+  const dailyPlanQuestionCount = availableCategories.length * SUBJECT_DAILY_QUESTION_GOAL;
+  const dailyPlanHasRepeats = availableCategories.some((category) => questionsByCategory[category].length < SUBJECT_DAILY_QUESTION_GOAL);
   const periodLabels = {
     day: t(language, "Today", "Jour"),
     week: t(language, "This week", "Semaine"),
@@ -66,6 +73,14 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
       </section>
 
       <section className="space-y-3">
+        <button onClick={() => onStart(availableCategories.flatMap((category) => randomQuestionIdsWithRepeats(
+          questionsByCategory[category],
+          SUBJECT_DAILY_QUESTION_GOAL,
+        )), "daily-plan")} disabled={!dailyPlanQuestionCount} className="group flex min-h-[72px] w-full items-center gap-3 rounded-2xl border border-sky-300/20 bg-gradient-to-r from-[#163c61] to-[#17465d] px-4 text-left shadow-lg shadow-sky-950/20 transition hover:brightness-110 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-sky-300/10 text-sky-200"><Target size={21} /></span>
+          <span className="flex-1"><span className="block text-base font-extrabold text-white">{t(language, "Today's study plan", "Plan de révision du jour")}</span><span className="mt-0.5 block text-[11px] font-medium text-slate-300">{t(language, `${dailyPlanQuestionCount} questions · ${SUBJECT_DAILY_QUESTION_GOAL} per available subject${dailyPlanHasRepeats ? " · repeats expected" : ""}`, `${dailyPlanQuestionCount} QCM · ${SUBJECT_DAILY_QUESTION_GOAL} par matière disponible${dailyPlanHasRepeats ? " · répétitions prévues" : ""}`)}</span></span><ArrowRight size={19} className="text-sky-200" />
+        </button>
+        {dailyPlanHasRepeats && <p className="px-1 text-[10px] leading-relaxed text-slate-500">{t(language, "Some subjects have fewer than 10 questions in the bank, so questions will repeat within today's plan.", "Certaines matières ont moins de 10 QCM dans la banque; des questions seront donc répétées dans le plan du jour.")}</p>}
         <button onClick={() => onStart(randomQuestionIds(questions, 10), "daily-check-in")} disabled={!questions.length} className="group flex min-h-[72px] w-full items-center gap-3 rounded-2xl bg-sky-400 px-4 text-left text-navy-950 shadow-lg shadow-sky-950/25 transition hover:bg-sky-300 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-black/[0.09]"><Zap size={21} fill="currentColor" /></span>
           <span className="flex-1"><span className="block text-base font-extrabold">{t(language, "Daily check-in", "Test du jour")}</span><span className="mt-0.5 block text-[11px] font-medium text-navy-950/70">{t(language, `${Math.min(10, questions.length)} random mixed questions · instant feedback`, `${Math.min(10, questions.length)} QCM mixtes aléatoires · correction immédiate`)}</span></span><ArrowRight size={19} />
@@ -111,7 +126,7 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
         <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-white/[0.035] p-1" role="group" aria-label={t(language, "Subject progress period", "Période de progression des matières")}>
           {Object.entries(periodLabels).map(([period, label]) => <button key={period} type="button" aria-pressed={progressPeriod === period} onClick={() => setProgressPeriod(period)} className={`min-h-10 rounded-lg px-1 text-[10px] font-semibold transition-colors ${progressPeriod === period ? "bg-sky-400 text-navy-950" : "text-slate-400 hover:text-white"}`}>{label}</button>)}
         </div>
-        <p className="mb-3 text-[10px] text-slate-500">{t(language, `Goal: ${subjectGoal} questions per subject ${progressPeriod === "day" ? "today" : progressPeriod === "week" ? "this week" : "this month"}.`, `Objectif : ${subjectGoal} questions par matière ${progressPeriod === "day" ? "aujourd'hui" : progressPeriod === "week" ? "cette semaine" : "ce mois-ci"}.`)}</p>
+        <p className="mb-3 text-[10px] text-slate-500">{t(language, `Goal: ${subjectGoal} questions per subject ${progressPeriod === "day" ? "today" : progressPeriod === "week" ? "this week (6 study days)" : "this month (24 study days)"}.`, `Objectif : ${subjectGoal} questions par matière ${progressPeriod === "day" ? "aujourd'hui" : progressPeriod === "week" ? "cette semaine (6 jours de révision)" : "ce mois-ci (24 jours de révision)"}.`)}</p>
         <div className="grid grid-cols-2 gap-3">
           {CATEGORIES.map((category) => {
             const subject = periodStats.byCategory[category] || { answered: 0, correct: 0 };
@@ -153,7 +168,8 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
         </div>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400">
           <span>{periodStats.sessions} {t(language, "sessions", "séances")}</span>
-          <span>{periodStats.dailyCheckIns} {t(language, "daily tests", "tests du jour")}</span>
+          <span>{periodStats.dailyPlans} {t(language, "daily plans", "plans du jour")}</span>
+          <span>{periodStats.dailyCheckIns} {t(language, "quick check-ins", "tests rapides")}</span>
           <span>{periodStats.mockExams} {t(language, "mock exams", "examens blancs")}</span>
           <span>{periodStats.flashcardsReviewed} {t(language, "flashcards reviewed", "flashcards révisées")}</span>
         </div>

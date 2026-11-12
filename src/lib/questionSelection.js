@@ -12,3 +12,23 @@ export function randomQuestionIds(questions, limit = questions.length, random = 
     .slice(0, Math.max(0, limit))
     .map((question) => question.id);
 }
+
+export function randomQuestionIdsWithRepeats(questions, limit, random = Math.random) {
+  if (!questions.length || limit <= 0) return [];
+
+  const result = [];
+  let previousId;
+  while (result.length < limit) {
+    const round = shuffle(questions, random);
+    if (round.length > 1 && round[0].id === previousId) {
+      const swapIndex = 1 + Math.floor(random() * (round.length - 1));
+      [round[0], round[swapIndex]] = [round[swapIndex], round[0]];
+    }
+    for (const question of round) {
+      if (result.length >= limit) break;
+      result.push(question.id);
+      previousId = question.id;
+    }
+  }
+  return result;
+}
