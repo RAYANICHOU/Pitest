@@ -66,12 +66,13 @@ export function loadAppState() {
         planStartDate: typeof saved.planStartDate === "string" ? saved.planStartDate : localDateKey(new Date()),
         activity: saved.activity && typeof saved.activity === "object" ? saved.activity : {},
         stats: saved.stats && typeof saved.stats === "object" ? saved.stats : { answered: 0, correct: 0 },
+        dailyStats: saved.dailyStats && typeof saved.dailyStats === "object" ? saved.dailyStats : {},
       };
     }
   } catch (error) {
     console.error("Could not read local app data:", error);
   }
-  return { bank: initialData, deletedContentIds: [], mistakes: [], masteredCards: [], cardProgress: {}, language: "en", theme: "dark", planStartDate: localDateKey(new Date()), activity: {}, stats: { answered: 0, correct: 0 } };
+  return { bank: initialData, deletedContentIds: [], mistakes: [], masteredCards: [], cardProgress: {}, language: "en", theme: "dark", planStartDate: localDateKey(new Date()), activity: {}, stats: { answered: 0, correct: 0 }, dailyStats: {} };
 }
 
 export function saveAppState(state) {
@@ -98,5 +99,6 @@ export function resetProgress(state) {
     planStartDate: localDateKey(new Date()),
     activity: {},
     stats: { answered: 0, correct: 0 },
+    dailyStats: {},
   };
 }

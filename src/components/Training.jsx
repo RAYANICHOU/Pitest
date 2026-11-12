@@ -8,7 +8,7 @@ const filters = ["Toutes", ...CATEGORIES];
 const letters = ["A", "B", "C", "D"];
 const EXAM_DURATION_SECONDS = 30 * 60;
 
-export default function Training({ questions, mistakes, onAnswer, onSessionActive, initialSession, language }) {
+export default function Training({ questions, mistakes, onAnswer, onSessionComplete, onSessionActive, initialSession, language }) {
   const [category, setCategory] = useState("Toutes");
   const [session, setSession] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -17,12 +17,36 @@ export default function Training({ questions, mistakes, onAnswer, onSessionActiv
   const [exam, setExam] = useState(false);
   const [examFinished, setExamFinished] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [sessionMode, setSessionMode] = useState("practice");
   const submitted = useRef(false);
   const startedAt = useRef(null);
+  const completionRecorded = useRef(false);
 
-  const begin = (items, isExam = false) => {
+  const recordSessionCompletion = (completed) => {
+    if (completionRecorded.current || !session || startedAt.current === null) return;
+    completionRecorded.current = true;
+    const answered = exam
+      ? Object.keys(answers).length
+      : session.filter((question) => question._answered).length;
+    const correct = exam
+      ? session.filter((question) => answers[question.id] !== undefined && answers[question.id] === question.answer).length
+      : session.filter((question) => question._answered && question._correct).length;
+    if (answered > 0) {
+      onSessionComplete({
+        mode: sessionMode,
+        startedAt: startedAt.current,
+        durationSeconds: Math.max(0, Math.floor((Date.now() - startedAt.current) / 1000)),
+        questionCount: session.length,
+        answered,
+        correct,
+        completed,
+      });
+    }
+  };
+
+  const begin = (items, isExam = false, mode = isExam ? "exam" : "practice") => {
     onSessionActive(true);
-    setSession(items);
+    setSession(items.map((item) => ({ ...item, _answered: false, _correct: false })));
     setIndex(0);
     setSelected(null);
     setAnswers({});
@@ -31,12 +55,17 @@ export default function Training({ questions, mistakes, onAnswer, onSessionActiv
     startedAt.current = Date.now();
     setSeconds(0);
     submitted.current = false;
+    completionRecorded.current = false;
+    setSessionMode(mode);
   };
 
   const finishExam = () => {
     if (submitted.current || !session) return;
     submitted.current = true;
-    session.forEach((question) => onAnswer(question, answers[question.id] === question.answer));
+    session.forEach((question) => {
+      if (answers[question.id] !== undefined) onAnswer(question, answers[question.id] === question.answer);
+    });
+    recordSessionCompletion(true);
     onSessionActive(false);
     setExamFinished(true);
   };
@@ -44,7 +73,7 @@ export default function Training({ questions, mistakes, onAnswer, onSessionActiv
   useEffect(() => {
     if (!initialSession?.ids?.length) return;
     const found = initialSession.ids.map((id) => questions.find((question) => question.id === id)).filter(Boolean);
-    begin(found, initialSession.mode === "exam");
+    begin(found, initialSession.mode === "exam", initialSession.mode);
   }, [initialSession?.token]);
 
   useEffect(() => {
@@ -88,20 +117,24 @@ export default function Training({ questions, mistakes, onAnswer, onSessionActiv
     setSelected(choice);
     const correct = choice === current.answer;
     onAnswer(current, correct);
-    setSession((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, _correct: correct } : item));
+    setSession((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, _answered: true, _correct: correct } : item));
   };
   const next = () => {
-    if (index >= session.length - 1) onSessionActive(false);
+    if (index >= session.length - 1) {
+      recordSessionCompletion(true);
+      onSessionActive(false);
+    }
     setIndex((value) => value + 1);
     setSelected(null);
   };
   const exitSession = () => {
     if (exam && !examFinished && Object.keys(answers).length > 0
       && !window.confirm(t(language, "Exit the mock exam? Your answers so far will not be scored.", "Quitter l'examen blanc ? Vos réponses ne seront pas prises en compte."))) return;
+    if (!exam) recordSessionCompletion(false);
     onSessionActive(false);
     setSession(null);
   };
-  const startPractice = (items) => begin(shuffle(items));
+  const startPractice = (items, mode = "practice") => begin(shuffle(items), false, mode);
   const startExam = () => begin(shuffle(questions).slice(0, Math.min(20, questions.length)), true);
 
   if (!session) {
@@ -128,7 +161,7 @@ export default function Training({ questions, mistakes, onAnswer, onSessionActiv
       </section>
       <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
         <div className="flex items-center justify-between"><div><h2 className="text-sm font-bold text-white">{t(language, "Review queue", "À retravailler")}</h2><p className="mt-1 text-xs text-slate-500">{t(language, `${review.length} pending questions`, `${review.length} question${review.length > 1 ? "s" : ""} en attente`)}</p></div><CircleAlert size={19} className="text-rose-300" /></div>
-        <button disabled={!review.length} onClick={() => startPractice(review)} className="mt-4 min-h-11 w-full rounded-xl border border-white/[0.08] text-sm font-semibold text-slate-200 disabled:opacity-40">{t(language, "Review mistakes", "Réviser les erreurs")} <RotateCcw size={14} className="ml-1 inline" /></button>
+        <button disabled={!review.length} onClick={() => startPractice(review, "mistakes")} className="mt-4 min-h-11 w-full rounded-xl border border-white/[0.08] text-sm font-semibold text-slate-200 disabled:opacity-40">{t(language, "Review mistakes", "Réviser les erreurs")} <RotateCcw size={14} className="ml-1 inline" /></button>
       </section>
     </div>;
   }
@@ -136,7 +169,7 @@ export default function Training({ questions, mistakes, onAnswer, onSessionActiv
   if (complete) return <div className="space-y-5 py-5">
     <div className="py-5 text-center">
       <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-400/10 text-emerald-300"><Check size={30} /></div>
-      <p className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-sky-300">{exam ? t(language, "Exam complete", "Examen terminé") : t(language, "Session complete", "Session terminée")}</p>
+      <p className="mt-5 text-xs font-bold uppercase tracking-[.16em] text-sky-300">{exam ? t(language, "Exam complete", "Examen terminé") : sessionMode === "daily-check-in" ? t(language, "Daily check-in complete", "Test du jour terminé") : t(language, "Session complete", "Session terminée")}</p>
       <h1 className="mt-2 text-3xl font-bold text-white">{score}<span className="text-lg text-slate-500">/{session.length}</span></h1>
       <p className="mt-2 text-sm text-slate-400">{exam ? t(language, "Time remaining", "Temps restant") : t(language, "Time elapsed", "Temps écoulé")} : {time}</p>
       <p className="mt-1 text-xs text-slate-500">{t(language, `${Math.round((score / session.length) * 100)}% score`, `${Math.round((score / session.length) * 100)}% de réussite`)}</p>

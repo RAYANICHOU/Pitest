@@ -3,6 +3,7 @@ import { AlertTriangle, Check, ChevronDown, Download, FileText, FileUp, Github, 
 import { CATEGORIES } from "../lib/constants.js";
 import { findQuestionDuplicates, normalizeForComparison } from "../lib/duplicateDetection.js";
 import { syncStudyBankToGitHub } from "../lib/githubSync.js";
+import { parseStudyContentImport } from "../lib/studyContentImport.js";
 import { resetProgress } from "../lib/storage.js";
 import { categoryLabel, t } from "../lib/i18n.js";
 
@@ -47,6 +48,9 @@ export default function Settings({
   const [pdfQuestions, setPdfQuestions] = useState([]);
   const [pdfName, setPdfName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [jsonImportOpen, setJsonImportOpen] = useState(false);
+  const [jsonImportValue, setJsonImportValue] = useState("");
+  const [jsonImporting, setJsonImporting] = useState(false);
   const [publishingId, setPublishingId] = useState(null);
   const [entryMode, setEntryMode] = useState("manual");
   const [addQuestionsOpen, setAddQuestionsOpen] = useState(false);
@@ -65,6 +69,37 @@ export default function Settings({
   const fileRef = useRef(null);
 
   const showMessage = (kind, text) => setMessage({ kind, text });
+  const importJson = async (event) => {
+    event.preventDefault();
+    setJsonImporting(true);
+    try {
+      const { items, invalidEntries, empty } = parseStudyContentImport(jsonImportValue);
+      if (empty) {
+        throw new Error(t(language, "Paste a non-empty question array or a backup object containing a bank array.", "Collez un tableau de questions non vide ou une sauvegarde contenant un tableau bank."));
+      }
+      if (invalidEntries.length) {
+        const examples = invalidEntries.slice(0, 5).map((index) => t(language, `entry ${index + 1}`, `entrée ${index + 1}`)).join(", ");
+        const remainder = invalidEntries.length > 5 ? t(language, ` and ${invalidEntries.length - 5} more`, ` et ${invalidEntries.length - 5} autre(s)`) : "";
+        throw new Error(t(language,
+          `Import cancelled: invalid or duplicate content in ${examples}${remainder}. Nothing was changed.`,
+          `Import annulé : contenu invalide ou identifiant en doublon dans ${examples}${remainder}. Aucune donnée n'a été modifiée.`));
+      }
+
+      const result = await onSaveQuestions(items);
+      if (!result?.saved) throw new Error(t(language, "The content could not be imported.", "Le contenu n'a pas pu être importé."));
+      setJsonImportValue("");
+      setJsonImportOpen(false);
+      showMessage("success", t(language,
+        `${items.length} study item${items.length === 1 ? "" : "s"} merged. Your scores and progress were preserved.`,
+        `${items.length} élément${items.length > 1 ? "s" : ""} fusionné${items.length > 1 ? "s" : ""}. Vos scores et votre progression ont été conservés.`));
+    } catch (error) {
+      showMessage("error", error instanceof SyntaxError
+        ? t(language, "Invalid JSON. Check the syntax and try again.", "JSON invalide. Vérifiez la syntaxe puis réessayez.")
+        : error instanceof Error ? error.message : t(language, "Import failed.", "L'import a échoué."));
+    } finally {
+      setJsonImporting(false);
+    }
+  };
   const exportData = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -368,14 +403,6 @@ export default function Settings({
     {message?.text && <div role={message.kind === "error" ? "alert" : "status"} className={`flex gap-2 rounded-xl border p-3 text-xs leading-relaxed ${message.kind === "error" ? "border-rose-400/20 bg-rose-400/[0.07] text-rose-200" : "border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-200"}`}>{message.kind === "error" ? <AlertTriangle size={15} className="mt-0.5 shrink-0" /> : <Check size={15} className="mt-0.5 shrink-0" />}<span className="whitespace-pre-line">{message.text}</span></div>}
 
     <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-      <h2 className="text-sm font-bold text-white">{t(language, "Language", "Langue")}</h2>
-      <p className="mt-1 text-[11px] text-slate-500">{t(language, "Choose the language used throughout the app.", "Choisissez la langue utilisée dans toute l'application.")}</p>
-      <select aria-label={t(language, "App language", "Langue de l'application")} value={language} onChange={(event) => onLanguageChange(event.target.value)} className="mt-3 min-h-11 w-full rounded-xl border border-white/[0.08] bg-[#0b1220] px-3 text-sm text-slate-200">
-        <option value="en">English</option><option value="fr">Français</option>
-      </select>
-    </section>
-
-    <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
       <h2 className="text-sm font-bold text-white">{t(language, "Appearance", "Apparence")}</h2>
       <p className="mt-1 text-[11px] text-slate-500">{t(language, "Choose the theme that feels right for your study sessions.", "Choisissez le thème adapté à vos sessions de révision.")}</p>
       <div className="mt-3 grid grid-cols-2 gap-2" role="group" aria-label={t(language, "Color theme", "Thème de couleurs")}>
@@ -633,12 +660,34 @@ export default function Settings({
     </section>
 
     <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+      <h2 className="text-sm font-bold text-white">{t(language, "Language", "Langue")}</h2>
+      <p className="mt-1 text-[11px] text-slate-500">{t(language, "Choose the language used throughout the app.", "Choisissez la langue utilisée dans toute l'application.")}</p>
+      <select aria-label={t(language, "App language", "Langue de l'application")} value={language} onChange={(event) => onLanguageChange(event.target.value)} className="mt-3 min-h-11 w-full rounded-xl border border-white/[0.08] bg-[#0b1220] px-3 text-sm text-slate-200">
+        <option value="en">English</option><option value="fr">Français</option>
+      </select>
+    </section>
+
+    <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
       <h2 className="text-sm font-bold text-white">{t(language, "Sync & backup", "Synchronisation & sauvegarde")}</h2>
       <p className="mt-1 text-[11px] text-slate-500">{t(language, `${data.bank.length} items · ${data.mistakes.length} mistakes · saved automatically on this device`, `${data.bank.length} éléments · ${data.mistakes.length} erreurs · sauvegarde automatique locale`)}</p>
       <button type="button" onClick={() => { setGithubSyncOpen(true); setGithubSyncMessage(null); }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-400 text-sm font-bold text-navy-950">
         <Github size={17} />{t(language, "Sync study bank to GitHub", "Synchroniser la banque avec GitHub")}
       </button>
       <button type="button" onClick={exportData} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.09] text-sm font-bold text-slate-200"><Download size={16} />{t(language, "Download backup (.json)", "Télécharger une sauvegarde (.json)")}</button>
+      <div className="mt-3 border-t border-white/[0.07] pt-3">
+        <button type="button" aria-expanded={jsonImportOpen} aria-controls="json-import-panel" onClick={() => setJsonImportOpen((open) => !open)} className="flex min-h-11 w-full items-center justify-between gap-3 text-left text-xs font-semibold text-slate-300">
+          <span>{t(language, "Import questions or a backup (.json)", "Importer des questions ou une sauvegarde (.json)")}</span>
+          <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${jsonImportOpen ? "rotate-180" : ""}`} />
+        </button>
+        <form id="json-import-panel" hidden={!jsonImportOpen} onSubmit={importJson} className="mt-2 space-y-3">
+          <p className="text-[11px] leading-relaxed text-slate-500">{t(language, "Paste a question array or a previously exported backup. Content is merged by ID; local scores and progress are never replaced.", "Collez un tableau de questions ou une sauvegarde exportée. Le contenu est fusionné par identifiant; les scores et la progression locale ne sont jamais remplacés.")}</p>
+          <textarea required value={jsonImportValue} onChange={(event) => setJsonImportValue(event.target.value)} rows={7} spellCheck="false" placeholder={'[\n  {\n    "id": "unique-id",\n    "category": "Maths",\n    "type": "qcm",\n    "question": "...",\n    "options": ["A", "B", "C", "D"],\n    "answer": 0,\n    "explanation": "..."\n  }\n]'} className="w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1220] p-3 font-mono text-[11px] leading-relaxed text-slate-200 placeholder:text-slate-600" />
+          <button type="submit" disabled={!jsonImportValue.trim() || jsonImporting} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.09] text-xs font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-40">
+            {jsonImporting ? <LoaderCircle size={15} className="animate-spin" /> : <FileUp size={15} />}
+            {jsonImporting ? t(language, "Validating and merging…", "Validation et fusion…") : t(language, "Validate and merge", "Valider et fusionner")}
+          </button>
+        </form>
+      </div>
       <button type="button" onClick={reset} className="mt-3 min-h-12 w-full rounded-xl border border-rose-400/20 bg-rose-400/[0.04] text-sm font-bold text-rose-200 transition hover:bg-rose-400/[0.09]">{t(language, "Reset progress", "Réinitialiser la progression")}</button>
     </section>
 

@@ -8,6 +8,8 @@ import Settings from "./components/Settings.jsx";
 import { loadAppState, saveAppState, mergeQuestions } from "./lib/storage.js";
 import { localDateKey } from "./lib/constants.js";
 import { t } from "./lib/i18n.js";
+import { addDailyAnswer, addDailyFlashcardReview, addDailySession } from "./lib/progress.js";
+import { shuffle } from "./lib/questionSelection.js";
 
 function App() {
   const [data, setData] = useState(loadAppState);
@@ -40,8 +42,11 @@ function App() {
   const flashcards = useMemo(() => data.bank.filter((item) => item.type === "flashcard"), [data.bank]);
 
   const startSession = (ids, mode = "practice") => {
+    const selectedIds = new Set(ids);
+    const randomizedIds = shuffle(questions.filter((question) => selectedIds.has(question.id)))
+      .map((question) => question.id);
     setTrainingActive(true);
-    setTrainingSession({ ids, mode, token: Date.now() });
+    setTrainingSession({ ids: randomizedIds, mode, token: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}` });
     setTab("training");
   };
 
@@ -64,6 +69,7 @@ function App() {
         ...current,
         mistakes,
         activity: { ...current.activity, [today]: true },
+        dailyStats: addDailyAnswer(current.dailyStats || {}, today, question, isCorrect),
         stats: {
           ...current.stats,
           answered: (current.stats.answered || 0) + 1,
@@ -75,6 +81,7 @@ function App() {
   };
 
   const reviewCard = (id, rating) => setData((current) => {
+    const today = localDateKey(new Date());
     const previous = current.cardProgress?.[id] || { repetitions: 0, intervalDays: 0 };
     const repetitions = rating === "again" ? 0 : previous.repetitions + 1;
     const intervals = [1, 3, 7, 14, 30];
@@ -92,8 +99,19 @@ function App() {
         ...current.cardProgress,
         [id]: { repetitions, intervalDays, dueAt },
       },
+      activity: { ...current.activity, [today]: true },
+      dailyStats: addDailyFlashcardReview(current.dailyStats || {}, today),
     };
   });
+  const recordSession = (session) => {
+    if (!session.answered && session.mode !== "exam") return;
+    const today = localDateKey(new Date(session.startedAt));
+    setData((current) => ({
+      ...current,
+      activity: { ...current.activity, [today]: true },
+      dailyStats: addDailySession(current.dailyStats || {}, today, session),
+    }));
+  };
   const saveQuestions = async (items) => {
     const currentById = new Map(data.bank.map((item) => [item.id, item]));
     const changedQuestionIds = new Set();
@@ -206,7 +224,7 @@ function App() {
         {notice && <div role="alert" className="mx-4 mt-3 rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-xs text-rose-200">{notice}</div>}
         <main className="min-h-[calc(100vh-138px)] px-4 pb-28 pt-5">
           {tab === "home" && <Dashboard data={data} questions={questions} language={language} onStart={startSession} onOpenTraining={() => { setTrainingSession(null); setTab("training"); }} />}
-          {tab === "training" && <Training key={trainingSession?.token || "lobby"} questions={questions} mistakes={data.mistakes} language={language} onAnswer={recordAnswer} onSessionActive={setTrainingActive} initialSession={trainingSession} />}
+          {tab === "training" && <Training key={trainingSession?.token || "lobby"} questions={questions} mistakes={data.mistakes} language={language} onAnswer={recordAnswer} onSessionComplete={recordSession} onSessionActive={setTrainingActive} initialSession={trainingSession} />}
           {tab === "cards" && <Flashcards cards={flashcards} masteredCards={data.masteredCards} cardProgress={data.cardProgress || {}} language={language} onReview={reviewCard} />}
           {tab === "settings" && <Settings
             data={data}
