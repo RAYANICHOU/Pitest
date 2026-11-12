@@ -3,7 +3,7 @@ import { ArrowRight, BarChart3, Check, ChevronDown, ChevronRight, Clock3, Rotate
 import { CATEGORIES, localDateKey } from "../lib/constants.js";
 import { categoryLabel, locale, t } from "../lib/i18n.js";
 import { randomQuestionIds } from "../lib/questionSelection.js";
-import { summarizeProgress } from "../lib/progress.js";
+import { getGoalProgress, getSubjectQuestionGoal, summarizeProgress } from "../lib/progress.js";
 
 const subjectStyle = {
   Anglais: { icon: "EN", color: "text-violet-300", bar: "bg-violet-400", panel: "border-violet-300/10" },
@@ -37,6 +37,7 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
   const dayNumber = Math.max(1, Math.min(30, Math.floor((today - start) / 86_400_000) + 1));
   const dateLabel = new Intl.DateTimeFormat(locale(language), { day: "numeric", month: "long" }).format(new Date());
   const periodStats = summarizeProgress(data.dailyStats || {}, progressPeriod);
+  const subjectGoal = getSubjectQuestionGoal(progressPeriod);
   const periodLabels = {
     day: t(language, "Today", "Jour"),
     week: t(language, "This week", "Semaine"),
@@ -106,22 +107,23 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
       </section>
 
       <section>
-        <div className="mb-3 flex items-end justify-between"><div><h2 className="text-sm font-bold text-white">{t(language, "Subjects", "Vos matières")}</h2><p className="mt-1 text-[11px] text-slate-500">{t(language, "Tap a subject to start practicing", "Touchez une matière pour commencer à vous entraîner")}</p></div><button onClick={onOpenTraining} className="flex min-h-11 items-center gap-1 text-xs font-semibold text-sky-300">{t(language, "Practice all", "Tout réviser")} <ChevronRight size={15} /></button></div>
+        <div className="mb-3 flex items-end justify-between"><div><h2 className="text-sm font-bold text-white">{t(language, "Subjects", "Vos matières")}</h2><p className="mt-1 text-[11px] text-slate-500">{t(language, "Progress toward each subject goal", "Progression vers l'objectif de chaque matière")}</p></div><button onClick={onOpenTraining} className="flex min-h-11 items-center gap-1 text-xs font-semibold text-sky-300">{t(language, "Practice all", "Tout réviser")} <ChevronRight size={15} /></button></div>
         <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-white/[0.035] p-1" role="group" aria-label={t(language, "Subject progress period", "Période de progression des matières")}>
           {Object.entries(periodLabels).map(([period, label]) => <button key={period} type="button" aria-pressed={progressPeriod === period} onClick={() => setProgressPeriod(period)} className={`min-h-10 rounded-lg px-1 text-[10px] font-semibold transition-colors ${progressPeriod === period ? "bg-sky-400 text-navy-950" : "text-slate-400 hover:text-white"}`}>{label}</button>)}
         </div>
+        <p className="mb-3 text-[10px] text-slate-500">{t(language, `Goal: ${subjectGoal} questions per subject ${progressPeriod === "day" ? "today" : progressPeriod === "week" ? "this week" : "this month"}.`, `Objectif : ${subjectGoal} questions par matière ${progressPeriod === "day" ? "aujourd'hui" : progressPeriod === "week" ? "cette semaine" : "ce mois-ci"}.`)}</p>
         <div className="grid grid-cols-2 gap-3">
           {CATEGORIES.map((category) => {
             const subject = periodStats.byCategory[category] || { answered: 0, correct: 0 };
-            const mastery = subject.answered ? Math.round((subject.correct / subject.answered) * 100) : null;
+            const goalProgress = getGoalProgress(subject.answered, subjectGoal);
             const style = subjectStyle[category];
             const subjectQuestions = questions.filter((question) => question.category === category);
-            return <button key={category} type="button" onClick={() => onStart(subjectQuestions.map((question) => question.id), "practice")} disabled={!subjectQuestions.length} aria-label={t(language, `Start ${categoryLabel(language, category)} practice, ${subjectQuestions.length} questions`, `Commencer l'entraînement ${categoryLabel(language, category)}, ${subjectQuestions.length} questions`)}
+            return <button key={category} type="button" onClick={() => onStart(subjectQuestions.map((question) => question.id), "practice")} disabled={!subjectQuestions.length} aria-label={t(language, `${categoryLabel(language, category)}: ${subject.answered} of ${subjectGoal} goal questions completed. Start practice with ${subjectQuestions.length} questions.`, `${categoryLabel(language, category)} : ${subject.answered} sur ${subjectGoal} questions d'objectif terminées. Commencer une séance de ${subjectQuestions.length} questions.`)}
               className={`min-h-[142px] rounded-2xl border ${style.panel} bg-white/[0.025] p-3.5 text-left transition hover:bg-white/[0.055] active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-55`}>
-              <div className="flex items-center justify-between"><span className={`grid h-8 min-w-8 place-items-center rounded-lg bg-white/[0.06] px-1 text-xs font-bold ${style.color}`}>{style.icon}</span><span className="text-xs font-bold text-slate-300">{mastery === null ? "—" : `${mastery}%`}</span></div>
+              <div className="flex items-center justify-between"><span className={`grid h-8 min-w-8 place-items-center rounded-lg bg-white/[0.06] px-1 text-xs font-bold ${style.color}`}>{style.icon}</span><span className="text-xs font-bold text-slate-300">{goalProgress}%</span></div>
               <h3 className="mt-3 text-sm font-bold text-white">{categoryLabel(language, category)}</h3>
-              <p className="mt-0.5 text-[10px] text-slate-500">{subjectQuestions.length ? subject.answered ? t(language, `${subject.answered} answered · ${subjectQuestions.length} available`, `${subject.answered} répondues · ${subjectQuestions.length} disponibles`) : t(language, `No answers ${progressPeriod === "day" ? "today" : progressPeriod === "week" ? "this week" : "this month"} · ${subjectQuestions.length} available`, `Aucune réponse ${progressPeriod === "day" ? "aujourd'hui" : progressPeriod === "week" ? "cette semaine" : "ce mois-ci"} · ${subjectQuestions.length} disponibles`) : t(language, "No questions yet", "Aucune question")}</p>
-              <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]"><div className={`h-full rounded-full ${style.bar} transition-all`} style={{ width: `${mastery ?? 0}%` }} /></div>
+              <p className="mt-0.5 text-[10px] text-slate-500">{subjectQuestions.length ? t(language, `${subject.answered} / ${subjectGoal} questions · ${subjectQuestions.length} available`, `${subject.answered} / ${subjectGoal} questions · ${subjectQuestions.length} disponibles`) : t(language, "No questions yet", "Aucune question")}</p>
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-white/[0.08]" role="progressbar" aria-valuemin={0} aria-valuemax={subjectGoal} aria-valuenow={Math.min(subject.answered, subjectGoal)} aria-label={t(language, `${categoryLabel(language, category)} goal progress`, `Progression de l'objectif ${categoryLabel(language, category)}`)}><div className={`h-full rounded-full ${style.bar} transition-all`} style={{ width: `${goalProgress}%` }} /></div>
             </button>;
           })}
         </div>

@@ -1,7 +1,20 @@
 import { localDateKey } from "./constants.js";
 
+export const SUBJECT_DAILY_QUESTION_GOAL = 2;
+
 function dayAtNoon(dateKey) {
   return new Date(`${dateKey}T12:00:00`);
+}
+
+export function getSubjectQuestionGoal(period, now = new Date()) {
+  if (period === "day") return SUBJECT_DAILY_QUESTION_GOAL;
+  if (period === "week") return SUBJECT_DAILY_QUESTION_GOAL * 7;
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return SUBJECT_DAILY_QUESTION_GOAL * daysInMonth;
+}
+
+export function getGoalProgress(answered, goal) {
+  return goal > 0 ? Math.min(100, Math.round((answered / goal) * 100)) : 0;
 }
 
 export function getProgressPeriod(period, now = new Date()) {
