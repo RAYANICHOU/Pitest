@@ -38,22 +38,23 @@ export function loadAppState() {
           ? currentSeeds.get(item.id)
           : item
       ));
-      const deletedQuestionIds = Array.isArray(saved.deletedQuestionIds)
-        ? saved.deletedQuestionIds.filter((id) => typeof id === "string")
-        : [];
+      const deletedContentIds = [...new Set([
+        ...(Array.isArray(saved.deletedContentIds) ? saved.deletedContentIds : []),
+        ...(Array.isArray(saved.deletedQuestionIds) ? saved.deletedQuestionIds : []),
+      ].filter((id) => typeof id === "string"))];
       const questionIds = new Set(bank.filter((item) => item.type === "qcm").map((item) => item.id));
       const generatedCardIds = new Set(bank
         .filter((item) => item.type === "flashcard"
           && (questionIds.has(item.sourceQuestionId)
             || questionIds.has(item.id.replace(/-flashcard(?:-\d+)?$/, ""))
-            || deletedQuestionIds.includes(item.sourceQuestionId)
-            || deletedQuestionIds.some((id) => item.id === `${id}-flashcard`)))
+            || deletedContentIds.includes(item.sourceQuestionId)
+            || deletedContentIds.some((id) => item.id === `${id}-flashcard`)))
         .map((item) => item.id));
       const independentBank = bank.filter((item) => !generatedCardIds.has(item.id));
-      const visibleSeeds = initialData.filter((item) => !deletedQuestionIds.includes(item.id));
+      const visibleSeeds = initialData.filter((item) => !deletedContentIds.includes(item.id));
       return {
         bank: mergeQuestions(visibleSeeds, independentBank),
-        deletedQuestionIds,
+        deletedContentIds,
         mistakes: Array.isArray(saved.mistakes) ? saved.mistakes : [],
         masteredCards: (Array.isArray(saved.masteredCards) ? saved.masteredCards : [])
           .filter((id) => !generatedCardIds.has(id)),
@@ -70,7 +71,7 @@ export function loadAppState() {
   } catch (error) {
     console.error("Could not read local app data:", error);
   }
-  return { bank: initialData, deletedQuestionIds: [], mistakes: [], masteredCards: [], cardProgress: {}, language: "en", theme: "dark", planStartDate: localDateKey(new Date()), activity: {}, stats: { answered: 0, correct: 0 } };
+  return { bank: initialData, deletedContentIds: [], mistakes: [], masteredCards: [], cardProgress: {}, language: "en", theme: "dark", planStartDate: localDateKey(new Date()), activity: {}, stats: { answered: 0, correct: 0 } };
 }
 
 export function saveAppState(state) {

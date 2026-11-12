@@ -115,7 +115,7 @@ function App() {
     const next = {
       ...data,
       bank: mergeQuestions(data.bank, items),
-      deletedQuestionIds: (data.deletedQuestionIds || []).filter(
+      deletedContentIds: (data.deletedContentIds || []).filter(
         (id) => !items.some((item) => item.id === id),
       ),
       mistakes: data.mistakes.filter((mistake) => !changedQuestionIds.has(mistake.id)),
@@ -148,7 +148,7 @@ function App() {
     const next = {
       ...data,
       bank: data.bank.filter((item) => item.id !== questionId),
-      deletedQuestionIds: [...new Set([...(data.deletedQuestionIds || []), questionId])],
+      deletedContentIds: [...new Set([...(data.deletedContentIds || []), questionId])],
       mistakes: data.mistakes.filter((mistake) => mistake.id !== questionId),
     };
     saveAppState(next);
@@ -178,6 +178,7 @@ function App() {
     const next = {
       ...data,
       bank: data.bank.filter((item) => item.id !== cardId || item.type !== "flashcard"),
+      deletedContentIds: [...new Set([...(data.deletedContentIds || []), cardId])],
       masteredCards: data.masteredCards.filter((id) => id !== cardId),
       cardProgress: Object.fromEntries(
         Object.entries(data.cardProgress || {}).filter(([id]) => id !== cardId),

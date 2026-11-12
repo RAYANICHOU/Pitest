@@ -1,9 +1,17 @@
 import { useRef, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, Download, FileText, FileUp, Info, Moon, PenLine, Plus, Pencil, Search, Sun, Tags, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Download, FileText, FileUp, Github, Info, LoaderCircle, LockKeyhole, Moon, PenLine, Plus, Pencil, Search, Sun, Tags, Trash2, X } from "lucide-react";
 import { CATEGORIES } from "../lib/constants.js";
 import { findQuestionDuplicates, normalizeForComparison } from "../lib/duplicateDetection.js";
+import { syncStudyBankToGitHub } from "../lib/githubSync.js";
 import { resetProgress } from "../lib/storage.js";
 import { categoryLabel, t } from "../lib/i18n.js";
+
+const GITHUB_DESTINATION = {
+  owner: "RAYANICHOU",
+  repository: "Pitest",
+  path: "public/data/study-bank.json",
+  branch: "main",
+};
 
 function emptyManualQuestion() {
   const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -50,6 +58,10 @@ export default function Settings({
   const [manageCategory, setManageCategory] = useState("all");
   const [manageType, setManageType] = useState("all");
   const [editingQuestion, setEditingQuestion] = useState(null);
+  const [githubSyncOpen, setGithubSyncOpen] = useState(false);
+  const [githubToken, setGithubToken] = useState("");
+  const [githubSyncing, setGithubSyncing] = useState(false);
+  const [githubSyncMessage, setGithubSyncMessage] = useState(null);
   const fileRef = useRef(null);
 
   const showMessage = (kind, text) => setMessage({ kind, text });
@@ -62,6 +74,37 @@ export default function Settings({
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     showMessage("success", t(language, "Your data has been exported.", "Vos données ont été exportées."));
+  };
+  const syncToGitHub = async (event) => {
+    event.preventDefault();
+    setGithubSyncing(true);
+    setGithubSyncMessage(null);
+    try {
+      const result = await syncStudyBankToGitHub({
+        ...GITHUB_DESTINATION,
+        token: githubToken,
+        language,
+        items: data.bank,
+      });
+      setGithubSyncMessage({
+        kind: "success",
+        text: t(language,
+          `${result.count} questions and flashcards synced to ${GITHUB_DESTINATION.owner}/${GITHUB_DESTINATION.repository}.`,
+          `${result.count} QCM et flashcards synchronisés vers ${GITHUB_DESTINATION.owner}/${GITHUB_DESTINATION.repository}.`),
+        commitUrl: result.commitUrl,
+      });
+    } catch (error) {
+      setGithubSyncMessage({
+        kind: "error",
+        text: error instanceof TypeError
+          ? t(language, "Could not reach GitHub. Check your connection and try again.", "Impossible de joindre GitHub. Vérifiez votre connexion puis réessayez.")
+          : error instanceof Error
+            ? error.message
+            : t(language, "GitHub sync failed. Try again.", "La synchronisation GitHub a échoué. Réessayez."),
+      });
+    } finally {
+      setGithubSyncing(false);
+    }
   };
   const readPdf = async (file) => {
     if (!file) return;
@@ -590,10 +633,48 @@ export default function Settings({
     </section>
 
     <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-      <h2 className="text-sm font-bold text-white">{t(language, "Backup & progress", "Sauvegarde & progression")}</h2>
+      <h2 className="text-sm font-bold text-white">{t(language, "Sync & backup", "Synchronisation & sauvegarde")}</h2>
       <p className="mt-1 text-[11px] text-slate-500">{t(language, `${data.bank.length} items · ${data.mistakes.length} mistakes · saved automatically on this device`, `${data.bank.length} éléments · ${data.mistakes.length} erreurs · sauvegarde automatique locale`)}</p>
-      <button onClick={exportData} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.09] text-sm font-bold text-slate-200"><Download size={16} />{t(language, "Export my data (.json)", "Exporter mes données (.json)")}</button>
-      <button onClick={reset} className="mt-3 min-h-12 w-full rounded-xl border border-rose-400/20 bg-rose-400/[0.04] text-sm font-bold text-rose-200 transition hover:bg-rose-400/[0.09]">{t(language, "Reset progress", "Réinitialiser la progression")}</button>
+      <button type="button" onClick={() => { setGithubSyncOpen(true); setGithubSyncMessage(null); }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-400 text-sm font-bold text-navy-950">
+        <Github size={17} />{t(language, "Sync study bank to GitHub", "Synchroniser la banque avec GitHub")}
+      </button>
+      <button type="button" onClick={exportData} className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.09] text-sm font-bold text-slate-200"><Download size={16} />{t(language, "Download backup (.json)", "Télécharger une sauvegarde (.json)")}</button>
+      <button type="button" onClick={reset} className="mt-3 min-h-12 w-full rounded-xl border border-rose-400/20 bg-rose-400/[0.04] text-sm font-bold text-rose-200 transition hover:bg-rose-400/[0.09]">{t(language, "Reset progress", "Réinitialiser la progression")}</button>
     </section>
+
+    {githubSyncOpen && <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center">
+      <section role="dialog" aria-modal="true" aria-labelledby="github-sync-title" className="max-h-[90vh] w-full max-w-[500px] overflow-y-auto rounded-2xl border border-white/10 bg-[#0d1626] p-5 shadow-2xl">
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-300/10 text-sky-200"><Github size={20} /></span>
+          <div className="min-w-0 flex-1">
+            <h2 id="github-sync-title" className="text-base font-bold text-white">{t(language, "Sync study bank to GitHub", "Synchroniser la banque avec GitHub")}</h2>
+            <p className="mt-1 break-all text-[11px] leading-relaxed text-slate-400">{GITHUB_DESTINATION.owner}/{GITHUB_DESTINATION.repository} · {GITHUB_DESTINATION.branch} · {GITHUB_DESTINATION.path}</p>
+          </div>
+          <button type="button" aria-label={t(language, "Close", "Fermer")} onClick={() => setGithubSyncOpen(false)} disabled={githubSyncing} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-white/[0.06] disabled:opacity-40"><X size={18} /></button>
+        </div>
+        <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3 text-[11px] leading-relaxed text-amber-100">
+          <p className="font-bold">{t(language, "This replaces the remote study-bank file with the current local bank.", "Cette action remplace le fichier distant par la banque locale actuelle.")}</p>
+          <p className="mt-1">{t(language, "Adds, edits, and deletions are included. Scores and personal progress are not uploaded.", "Les ajouts, modifications et suppressions sont inclus. Les scores et la progression personnelle ne sont pas envoyés.")}</p>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-slate-400">{t(language, "Use a fine-grained personal access token limited to this repository with Contents: Read and write. The token is used only in memory and is never saved to local storage.", "Utilisez un jeton d'accès personnel à granularité fine, limité à ce dépôt, avec Contents : Read and write. Le jeton reste en mémoire et n'est jamais enregistré localement.")}</p>
+        <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-10 items-center text-xs font-semibold text-sky-300 underline underline-offset-2">{t(language, "Create a fine-grained token on GitHub", "Créer un jeton à granularité fine sur GitHub")}</a>
+        <form onSubmit={syncToGitHub} className="mt-3 space-y-3">
+          <label className="block text-xs font-semibold text-slate-300">{t(language, "GitHub token", "Jeton GitHub")}
+            <input type="password" autoComplete="off" spellCheck="false" required value={githubToken} onChange={(event) => setGithubToken(event.target.value)} placeholder="github_pat_…" className="mt-1 min-h-12 w-full rounded-xl border border-white/[0.1] bg-[#080e19] px-3 text-sm text-slate-100 placeholder:text-slate-600" />
+          </label>
+          {githubSyncMessage && <div role={githubSyncMessage.kind === "error" ? "alert" : "status"} className={`rounded-xl border p-3 text-xs leading-relaxed ${githubSyncMessage.kind === "error" ? "border-rose-400/20 bg-rose-400/[0.07] text-rose-200" : "border-emerald-400/20 bg-emerald-400/[0.07] text-emerald-200"}`}>
+            <p>{githubSyncMessage.text}</p>
+            {githubSyncMessage.commitUrl && <a href={githubSyncMessage.commitUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block font-semibold underline underline-offset-2">{t(language, "View GitHub commit", "Voir le commit GitHub")}</a>}
+          </div>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={githubSyncing || !githubToken.trim()} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-sky-400 px-3 text-sm font-bold text-navy-950 disabled:opacity-50">
+              {githubSyncing ? <LoaderCircle size={16} className="animate-spin" /> : <LockKeyhole size={16} />}
+              {githubSyncing ? t(language, "Syncing…", "Synchronisation…") : t(language, "Push study bank", "Envoyer la banque")}
+            </button>
+            <button type="button" disabled={githubSyncing || !githubToken} onClick={() => { setGithubToken(""); setGithubSyncMessage(null); }} className="min-h-12 rounded-xl border border-white/[0.1] px-3 text-xs font-bold text-slate-300 disabled:opacity-40">{t(language, "Forget token", "Oublier le jeton")}</button>
+          </div>
+        </form>
+      </section>
+    </div>}
   </div>;
 }

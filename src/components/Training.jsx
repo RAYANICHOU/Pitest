@@ -2,19 +2,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlarmClock, ArrowLeft, ArrowRight, Check, CircleAlert, ClipboardCheck, RotateCcw } from "lucide-react";
 import { CATEGORIES } from "../lib/constants.js";
 import { categoryLabel, t } from "../lib/i18n.js";
+import { shuffle } from "../lib/questionSelection.js";
 
 const filters = ["Toutes", ...CATEGORIES];
 const letters = ["A", "B", "C", "D"];
 const EXAM_DURATION_SECONDS = 30 * 60;
-
-function shuffled(items) {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [result[index], result[swap]] = [result[swap], result[index]];
-  }
-  return result;
-}
 
 export default function Training({ questions, mistakes, onAnswer, onSessionActive, initialSession, language }) {
   const [category, setCategory] = useState("Toutes");
@@ -109,8 +101,8 @@ export default function Training({ questions, mistakes, onAnswer, onSessionActiv
     onSessionActive(false);
     setSession(null);
   };
-  const startPractice = (items) => begin(shuffled(items));
-  const startExam = () => begin(shuffled(questions).slice(0, Math.min(20, questions.length)), true);
+  const startPractice = (items) => begin(shuffle(items));
+  const startExam = () => begin(shuffle(questions).slice(0, Math.min(20, questions.length)), true);
 
   if (!session) {
     const missed = new Set(mistakes.map((item) => item.id));

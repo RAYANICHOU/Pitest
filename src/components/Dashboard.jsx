@@ -1,6 +1,7 @@
 import { ArrowRight, Check, ChevronRight, Clock3, RotateCcw, Target, Zap } from "lucide-react";
 import { CATEGORIES, localDateKey } from "../lib/constants.js";
 import { categoryLabel, locale, t } from "../lib/i18n.js";
+import { randomQuestionIds } from "../lib/questionSelection.js";
 
 const subjectStyle = {
   Anglais: { icon: "EN", color: "text-violet-300", bar: "bg-violet-400", panel: "border-violet-300/10" },
@@ -8,15 +9,6 @@ const subjectStyle = {
   Physique: { icon: "Φ", color: "text-amber-300", bar: "bg-amber-400", panel: "border-amber-300/10" },
   Mécanique: { icon: "⚙", color: "text-emerald-300", bar: "bg-emerald-400", panel: "border-emerald-300/10" },
 };
-
-function shuffle(items) {
-  const result = [...items];
-  for (let index = result.length - 1; index > 0; index -= 1) {
-    const swap = Math.floor(Math.random() * (index + 1));
-    [result[index], result[swap]] = [result[swap], result[index]];
-  }
-  return result;
-}
 
 function getPlanDays(activity, startDate) {
   const days = [];
@@ -39,7 +31,6 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
   const today = Date.parse(`${localDateKey(new Date())}T00:00:00Z`);
   const dayNumber = Math.max(1, Math.min(30, Math.floor((today - start) / 86_400_000) + 1));
   const dateLabel = new Intl.DateTimeFormat(locale(language), { day: "numeric", month: "long" }).format(new Date());
-  const express = shuffle(questions).slice(0, 10).map((question) => question.id);
   const mistakesById = new Map((data.mistakes || []).map((mistake) => [mistake.id, mistake]));
   const errorIds = questions
     .filter((question) => mistakesById.has(question.id))
@@ -105,7 +96,7 @@ export default function Dashboard({ data, questions, language, onStart, onOpenTr
       </section>
 
       <section className="space-y-3 pb-2">
-        <button onClick={() => onStart(express, "practice")} className="group flex min-h-[62px] w-full items-center gap-3 rounded-2xl bg-sky-400 px-4 text-left text-navy-950 shadow-lg shadow-sky-950/25 transition hover:bg-sky-300 active:scale-[.99]">
+        <button onClick={() => onStart(randomQuestionIds(questions, 10), "practice")} className="group flex min-h-[62px] w-full items-center gap-3 rounded-2xl bg-sky-400 px-4 text-left text-navy-950 shadow-lg shadow-sky-950/25 transition hover:bg-sky-300 active:scale-[.99]">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-black/[0.09]"><Zap size={20} fill="currentColor" /></span>
           <span className="flex-1"><span className="block text-sm font-extrabold">{t(language, "Quick session", "Session Express")}</span><span className="mt-0.5 block text-[11px] font-medium text-navy-950/70">{t(language, "10 mixed questions", "10 questions mixtes")}</span></span><ArrowRight size={18} />
         </button>
