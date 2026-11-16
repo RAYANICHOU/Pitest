@@ -51,9 +51,6 @@ const MATH_SYMBOLS = [
   ["∞", "infinity", "infini"],
   ["°", "degree", "degré"],
   ["Δ", "delta", "delta"],
-  ["θ", "theta", "thêta"],
-  ["λ", "lambda", "lambda"],
-  ["μ", "mu", "mu"],
   ["∑", "sum", "somme"],
   ["∫", "integral", "intégrale"],
   ["→", "vector or implication arrow", "flèche vecteur ou implication"],
@@ -66,24 +63,76 @@ const MATH_SYMBOLS = [
   ["ln(", "natural logarithm function", "fonction logarithme népérien"],
 ];
 
+const VARIABLE_SYMBOLS = [
+  ["x", "variable x", "variable x"],
+  ["y", "variable y", "variable y"],
+  ["z", "variable z", "variable z"],
+  ["t", "variable t", "variable t"],
+  ["n", "variable n", "variable n"],
+  ["a", "variable a", "variable a"],
+  ["b", "variable b", "variable b"],
+  ["c", "variable c", "variable c"],
+  ["r", "variable r", "variable r"],
+  ["v", "variable v", "variable v"],
+];
+
+const GREEK_SYMBOLS = [
+  ["α", "alpha", "alpha"],
+  ["β", "beta", "bêta"],
+  ["γ", "gamma", "gamma"],
+  ["δ", "delta", "delta"],
+  ["ε", "epsilon", "epsilon"],
+  ["ζ", "zeta", "zêta"],
+  ["η", "eta", "êta"],
+  ["θ", "theta", "thêta"],
+  ["λ", "lambda", "lambda"],
+  ["μ", "mu", "mu"],
+  ["π", "pi", "pi"],
+  ["ρ", "rho", "rhô"],
+  ["σ", "sigma", "sigma"],
+  ["φ", "phi", "phi"],
+  ["ω", "omega", "oméga"],
+  ["Α", "capital alpha", "alpha majuscule"],
+  ["Β", "capital beta", "bêta majuscule"],
+  ["Γ", "capital gamma", "gamma majuscule"],
+  ["Δ", "capital delta", "delta majuscule"],
+  ["Θ", "capital theta", "thêta majuscule"],
+  ["Λ", "capital lambda", "lambda majuscule"],
+  ["Π", "capital pi", "pi majuscule"],
+  ["Σ", "capital sigma", "sigma majuscule"],
+  ["Φ", "capital phi", "phi majuscule"],
+  ["Ω", "capital omega", "oméga majuscule"],
+];
+
 function ScientificTextarea({ id, label, value, onChange, rows, placeholder, language, className }) {
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [keyboardGroup, setKeyboardGroup] = useState("math");
   const textareaRef = useRef(null);
   const selectionRef = useRef(null);
   const keyboardId = `${id}-math-keyboard`;
 
-  const insertSymbol = (symbol) => {
+  const replaceSelection = (text, deleteBefore = false) => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    const start = selectionRef.current?.start ?? value.length;
-    const end = selectionRef.current?.end ?? value.length;
-    const nextValue = `${value.slice(0, start)}${symbol}${value.slice(end)}`;
-    selectionRef.current = { start: start + symbol.length, end: start + symbol.length };
+    let { start, end } = selectionRef.current || { start: value.length, end: value.length };
+    if (deleteBefore && start === end && start > 0) {
+      const previousCharacters = Array.from(value.slice(0, start));
+      start -= previousCharacters[previousCharacters.length - 1].length;
+    }
+    if (deleteBefore && start === end) return;
+    const nextValue = `${value.slice(0, start)}${text}${value.slice(end)}`;
+    selectionRef.current = { start: start + text.length, end: start + text.length };
     onChange(nextValue);
     requestAnimationFrame(() => {
       textarea.focus();
-      textarea.setSelectionRange(start + symbol.length, start + symbol.length);
+      textarea.setSelectionRange(start + text.length, start + text.length);
     });
+  };
+
+  const symbolSets = {
+    math: MATH_SYMBOLS,
+    variables: VARIABLE_SYMBOLS,
+    greek: GREEK_SYMBOLS,
   };
 
   const rememberSelection = (textarea) => {
@@ -120,15 +169,45 @@ function ScientificTextarea({ id, label, value, onChange, rows, placeholder, lan
         : t(language, "Scientific keyboard", "Clavier scientifique")}
     </button>
     {keyboardOpen && <div id={keyboardId} role="group" aria-label={t(language, "Scientific symbols", "Symboles scientifiques")} className="grid grid-cols-6 gap-1 rounded-xl border border-white/[0.08] bg-black/10 p-2">
-      {MATH_SYMBOLS.map(([symbol, englishName, frenchName]) => <button
+      <div className="col-span-6 grid grid-cols-3 gap-1" role="group" aria-label={t(language, "Symbol categories", "Catégories de symboles")}>
+        {[
+          ["math", t(language, "Maths", "Calcul")],
+          ["variables", t(language, "Variables", "Variables")],
+          ["greek", t(language, "Greek", "Grec")],
+        ].map(([group, groupLabel]) => <button
+          key={group}
+          type="button"
+          aria-pressed={keyboardGroup === group}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => setKeyboardGroup(group)}
+          className={`min-h-9 rounded-lg px-1 text-[11px] font-semibold ${keyboardGroup === group ? "bg-sky-300/15 text-sky-200" : "text-slate-400 hover:bg-white/[0.04]"}`}
+        >{groupLabel}</button>)}
+      </div>
+      {symbolSets[keyboardGroup].map(([symbol, englishName, frenchName]) => <button
         key={symbol}
         type="button"
         aria-label={t(language, `Insert ${englishName}`, `Insérer ${frenchName}`)}
         title={t(language, englishName, frenchName)}
         onMouseDown={(event) => event.preventDefault()}
-        onClick={() => insertSymbol(symbol)}
+        onClick={() => replaceSelection(symbol)}
         className="min-h-10 rounded-lg border border-white/[0.06] bg-white/[0.025] text-base font-semibold text-slate-200 hover:border-sky-300/30 hover:bg-sky-300/[0.08] active:bg-sky-300/[0.15]"
       >{symbol}</button>)}
+      <button
+        type="button"
+        aria-label={t(language, "Delete before the cursor or selection", "Supprimer avant le curseur ou la sélection")}
+        title={t(language, "Delete", "Supprimer")}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => replaceSelection("", true)}
+        className="col-span-3 flex min-h-10 items-center justify-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.025] text-xs font-semibold text-slate-200 hover:border-rose-300/30 hover:bg-rose-300/[0.08]"
+      ><span aria-hidden="true" className="text-base">⌫</span>{t(language, "Delete", "Supprimer")}</button>
+      <button
+        type="button"
+        aria-label={t(language, "Insert a new line", "Insérer un retour à la ligne")}
+        title={t(language, "Enter", "Entrée")}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => replaceSelection("\n")}
+        className="col-span-3 flex min-h-10 items-center justify-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.025] text-xs font-semibold text-slate-200 hover:border-sky-300/30 hover:bg-sky-300/[0.08]"
+      ><span aria-hidden="true" className="text-base">↵</span>{t(language, "Enter", "Entrée")}</button>
     </div>}
   </div>;
 }
