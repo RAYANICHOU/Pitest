@@ -31,6 +31,108 @@ function emptyFlashcard() {
   return { id: `flashcard-${id}`, category: CATEGORIES[0], question: "", explanation: "" };
 }
 
+const MATH_SYMBOLS = [
+  ["²", "squared", "au carré"],
+  ["³", "cubed", "au cube"],
+  ["ⁿ", "superscript n", "exposant n"],
+  ["₀", "subscript zero", "indice zéro"],
+  ["₁", "subscript one", "indice un"],
+  ["₂", "subscript two", "indice deux"],
+  ["√", "square root", "racine carrée"],
+  ["∛", "cube root", "racine cubique"],
+  ["π", "pi", "pi"],
+  ["±", "plus or minus", "plus ou moins"],
+  ["×", "multiplication", "multiplication"],
+  ["÷", "division", "division"],
+  ["≤", "less than or equal to", "inférieur ou égal à"],
+  ["≥", "greater than or equal to", "supérieur ou égal à"],
+  ["≠", "not equal to", "différent de"],
+  ["≈", "approximately equal to", "environ égal à"],
+  ["∞", "infinity", "infini"],
+  ["°", "degree", "degré"],
+  ["Δ", "delta", "delta"],
+  ["θ", "theta", "thêta"],
+  ["λ", "lambda", "lambda"],
+  ["μ", "mu", "mu"],
+  ["∑", "sum", "somme"],
+  ["∫", "integral", "intégrale"],
+  ["→", "vector or implication arrow", "flèche vecteur ou implication"],
+  ["·", "dot product", "produit scalaire"],
+  ["^", "power", "puissance"],
+  ["sin(", "sine function", "fonction sinus"],
+  ["cos(", "cosine function", "fonction cosinus"],
+  ["tan(", "tangent function", "fonction tangente"],
+  ["log(", "logarithm function", "fonction logarithme"],
+  ["ln(", "natural logarithm function", "fonction logarithme népérien"],
+];
+
+function ScientificTextarea({ id, label, value, onChange, rows, placeholder, language, className }) {
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const textareaRef = useRef(null);
+  const selectionRef = useRef(null);
+  const keyboardId = `${id}-math-keyboard`;
+
+  const insertSymbol = (symbol) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = selectionRef.current?.start ?? value.length;
+    const end = selectionRef.current?.end ?? value.length;
+    const nextValue = `${value.slice(0, start)}${symbol}${value.slice(end)}`;
+    selectionRef.current = { start: start + symbol.length, end: start + symbol.length };
+    onChange(nextValue);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + symbol.length, start + symbol.length);
+    });
+  };
+
+  const rememberSelection = (textarea) => {
+    selectionRef.current = { start: textarea.selectionStart, end: textarea.selectionEnd };
+  };
+
+  return <div>
+    <label htmlFor={id} className="block text-[10px] font-semibold text-slate-400">{label}</label>
+    <textarea
+      ref={textareaRef}
+      id={id}
+      required
+      rows={rows}
+      value={value}
+      onChange={(event) => {
+        rememberSelection(event.target);
+        onChange(event.target.value);
+      }}
+      onSelect={(event) => rememberSelection(event.target)}
+      onBlur={(event) => rememberSelection(event.target)}
+      placeholder={placeholder}
+      className={className}
+    />
+    <button
+      type="button"
+      aria-expanded={keyboardOpen}
+      aria-controls={keyboardId}
+      onClick={() => setKeyboardOpen((open) => !open)}
+      className="mt-1 flex min-h-10 items-center gap-2 rounded-lg px-2 text-[11px] font-semibold text-sky-300 hover:bg-sky-300/[0.06]"
+    >
+      <span aria-hidden="true" className="text-sm">√ π</span>
+      {keyboardOpen
+        ? t(language, "Hide scientific keyboard", "Masquer le clavier scientifique")
+        : t(language, "Scientific keyboard", "Clavier scientifique")}
+    </button>
+    {keyboardOpen && <div id={keyboardId} role="group" aria-label={t(language, "Scientific symbols", "Symboles scientifiques")} className="grid grid-cols-6 gap-1 rounded-xl border border-white/[0.08] bg-black/10 p-2">
+      {MATH_SYMBOLS.map(([symbol, englishName, frenchName]) => <button
+        key={symbol}
+        type="button"
+        aria-label={t(language, `Insert ${englishName}`, `Insérer ${frenchName}`)}
+        title={t(language, englishName, frenchName)}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => insertSymbol(symbol)}
+        className="min-h-10 rounded-lg border border-white/[0.06] bg-white/[0.025] text-base font-semibold text-slate-200 hover:border-sky-300/30 hover:bg-sky-300/[0.08] active:bg-sky-300/[0.15]"
+      >{symbol}</button>)}
+    </div>}
+  </div>;
+}
+
 export default function Settings({
   data,
   language,
@@ -491,12 +593,8 @@ export default function Settings({
               {CATEGORIES.map((item) => <option key={item} value={item}>{categoryLabel(language, item)}</option>)}
             </select>
           </label>
-          <label className="block text-[10px] font-semibold text-slate-400">{t(language, "Front · term or prompt", "Recto · terme ou question")}
-            <textarea required rows={2} value={manualFlashcard.question} onChange={(event) => setManualFlashcard((current) => ({ ...current, question: event.target.value }))} placeholder={t(language, "e.g. Newton’s second law", "Ex. : deuxième loi de Newton")} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-sm leading-relaxed text-slate-200 placeholder:text-slate-600" />
-          </label>
-          <label className="block text-[10px] font-semibold text-slate-400">{t(language, "Back · definition or explanation", "Verso · définition ou explication")}
-            <textarea required rows={4} value={manualFlashcard.explanation} onChange={(event) => setManualFlashcard((current) => ({ ...current, explanation: event.target.value }))} placeholder={t(language, "Write the definition, formula, or an example…", "Saisissez la définition, la formule ou un exemple…")} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-xs leading-relaxed text-slate-200 placeholder:text-slate-600" />
-          </label>
+          <ScientificTextarea id="manual-flashcard-front" label={t(language, "Front · term or prompt", "Recto · terme ou question")} value={manualFlashcard.question} onChange={(question) => setManualFlashcard((current) => ({ ...current, question }))} rows={2} language={language} placeholder={t(language, "e.g. Newton’s second law", "Ex. : deuxième loi de Newton")} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-sm leading-relaxed text-slate-200 placeholder:text-slate-600" />
+          <ScientificTextarea id="manual-flashcard-back" label={t(language, "Back · definition or explanation", "Verso · définition ou explication")} value={manualFlashcard.explanation} onChange={(explanation) => setManualFlashcard((current) => ({ ...current, explanation }))} rows={4} language={language} placeholder={t(language, "Write the definition, formula, or an example…", "Saisissez la définition, la formule ou un exemple…")} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-xs leading-relaxed text-slate-200 placeholder:text-slate-600" />
           <button type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky-400 text-sm font-bold text-navy-950">
             <Plus size={16} />{t(language, "Add flashcard", "Ajouter la flashcard")}
           </button>
@@ -617,12 +715,12 @@ export default function Settings({
                     {CATEGORIES.map((category) => <option key={category} value={category}>{categoryLabel(language, category)}</option>)}
                   </select>
                 </label>
-                <label className="block text-[10px] font-semibold text-slate-400">{isFlashcard ? t(language, "Front · term or prompt", "Recto · terme ou question") : t(language, "Question", "Question")}
-                  <textarea rows={3} value={editingQuestion.question} onChange={(event) => updateEditingQuestion({ question: event.target.value })} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-xs leading-relaxed text-slate-200" />
-                </label>
-                {isFlashcard ? <label className="block text-[10px] font-semibold text-slate-400">{t(language, "Back · definition or explanation", "Verso · définition ou explication")}
-                  <textarea rows={4} value={editingQuestion.explanation || ""} onChange={(event) => updateEditingQuestion({ explanation: event.target.value })} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-xs leading-relaxed text-slate-200" />
-                </label> : <>
+                {isFlashcard
+                  ? <ScientificTextarea id={`edit-flashcard-front-${editingQuestion.id}`} label={t(language, "Front · term or prompt", "Recto · terme ou question")} value={editingQuestion.question} onChange={(question) => updateEditingQuestion({ question })} rows={3} language={language} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-xs leading-relaxed text-slate-200" />
+                  : <label className="block text-[10px] font-semibold text-slate-400">{t(language, "Question", "Question")}
+                    <textarea rows={3} value={editingQuestion.question} onChange={(event) => updateEditingQuestion({ question: event.target.value })} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-xs leading-relaxed text-slate-200" />
+                  </label>}
+                {isFlashcard ? <ScientificTextarea id={`edit-flashcard-back-${editingQuestion.id}`} label={t(language, "Back · definition or explanation", "Verso · définition ou explication")} value={editingQuestion.explanation || ""} onChange={(explanation) => updateEditingQuestion({ explanation })} rows={4} language={language} className="mt-1 w-full resize-y rounded-lg border border-white/[0.08] bg-[#0b1220] p-3 text-xs leading-relaxed text-slate-200" /> : <>
                 <div className="grid grid-cols-2 gap-2">
                   {editingQuestion.options.map((option, index) => <label key={index} className="block text-[10px] font-semibold text-slate-400">{t(language, `Choice ${String.fromCharCode(65 + index)}`, `Choix ${String.fromCharCode(65 + index)}`)}
                     <input value={option} onChange={(event) => updateEditingQuestion({ options: editingQuestion.options.map((value, optionIndex) => optionIndex === index ? event.target.value : value) })} className="mt-1 min-h-11 w-full rounded-lg border border-white/[0.08] bg-[#0b1220] px-2 text-xs text-slate-200" />
